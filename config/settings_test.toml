@@ -1,0 +1,12 @@
+video_mime_types = [ "video/x-matroska", "video/x-msvideo", "video/mp4", "video/x-flv", "video/quicktime", "video/x-ms-wmv", "video/vnd.dlna.mpeg-tts", "application/x-matroska" ]
+
+[mongodb]
+connection_url = "mongo://something"
+database = "videosmover"
+download_collection = "download_cache"
+
+[torrent_web_ui]
+base_url = "<qTorrentBaseUrl>"
+username = "admin"
+password = "adminadmin"
+download_root_path = "/tmp"
