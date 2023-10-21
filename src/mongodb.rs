@@ -1,3 +1,4 @@
+use eyre::Result;
 use mongodb::{sync::Client, bson::{Document, doc, DateTime}};
 use tracing::info;
 
@@ -9,7 +10,7 @@ pub struct MongoUpdater<'a> {
 }
 
 impl <'a> MongoUpdater<'a> {
-    pub fn new(config: &'a Settings) -> Result<Self, anyhow::Error> {
+    pub fn new(config: &'a Settings) -> Result<Self> {
         Ok(Self { 
             config,
             client: Client::with_uri_str(&config.mongodb.connection_url)?
@@ -18,7 +19,7 @@ impl <'a> MongoUpdater<'a> {
 }
 
 impl <'a> HistoryUpdater for MongoUpdater<'a> {
-    fn update_history(&self, files: Vec<TorrentFile>) -> Result<(), anyhow::Error> {
+    fn update_history(&self, files: Vec<TorrentFile>) -> Result<()> {
         let database = self.client.database(&self.config.mongodb.database);
         let collection = database.collection::<Document>(&self.config.mongodb.download_collection);
 

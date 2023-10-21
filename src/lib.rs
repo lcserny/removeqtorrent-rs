@@ -1,15 +1,14 @@
 use std::{env, thread::{self}};
 
-use anyhow::Context;
 use config::{Config, File, Environment};
-use downloads::HistoryUpdater;
+use eyre::{Context, Result, Report};
 use mongodb::MongoUpdater;
 use qtorrent::QTorrentHandler;
 use reqwest::blocking::Client;
 use serde::Deserialize;
 use tracing::{error, info};
 
-use crate::torrents::TorrentsHandler;
+use crate::{torrents::TorrentsHandler, downloads::HistoryUpdater};
 
 pub mod qtorrent;
 pub mod mongodb;
@@ -36,7 +35,7 @@ pub struct Settings {
     pub video_mime_types: Vec<String>,
 }
 
-pub fn run(cfg: Settings, hash: String) -> Result<(), anyhow::Error> {
+pub fn run(cfg: Settings, hash: String) -> Result<()> {
     info!("hash received: {}", &hash);
 
     let http_client = Client::new();
@@ -69,7 +68,7 @@ pub fn init_logging(dir: &str, prefix: &str) {
     tracing_subscriber::fmt().with_writer(file_appender).init();
 }
 
-pub fn init_config(filename: &str, env_prefix: &str) -> Result<Settings, anyhow::Error> {
+pub fn init_config(filename: &str, env_prefix: &str) -> Result<Settings> {
     let run_mode = env::var("RUN_MODE").unwrap_or_else(|_| "development".into());
 
     return Config::builder()
@@ -77,15 +76,16 @@ pub fn init_config(filename: &str, env_prefix: &str) -> Result<Settings, anyhow:
                 .add_source(File::with_name(&format!("{}_{}", filename, run_mode)).required(false))
                 .add_source(Environment::with_prefix(env_prefix))
                 .build()?
-                .try_deserialize().with_context(|| "failed to create Settings from config proovided");
+                .try_deserialize().wrap_err_with(|| format!("failed to create Settings from config proovided: {}", &filename));
 }
 
-pub fn log_and_fail(e: anyhow::Error, error_code: i32) {
-    error!("{}", e.to_string());
+pub fn log_and_fail(e: Report, error_code: i32) {
+    error!("{:?}", e);
     std::process::exit(error_code);
 }
 
 pub mod torrents {
+    use eyre::Result;
     use serde::Deserialize;
 
     #[derive(Debug, Deserialize)]
@@ -97,16 +97,18 @@ pub mod torrents {
     }
 
     pub trait TorrentsHandler {
-        fn generate_sid(&self) -> Result<String, anyhow::Error>;
-        fn list_files(&self, sid: &str, hash: &str) -> Result<Vec<TorrentFile>, anyhow::Error>;
-        fn delete(&self, sid: &str, hash: &str, delete_files: bool) -> Result<(), anyhow::Error>;
+        fn generate_sid(&self) -> Result<String>;
+        fn list_files(&self, sid: &str, hash: &str) -> Result<Vec<TorrentFile>>;
+        fn delete(&self, sid: &str, hash: &str, delete_files: bool) -> Result<()>;
     }
 }
 
 pub mod downloads {
+    use eyre::Result;
+
     use crate::torrents::TorrentFile;
 
     pub trait HistoryUpdater {
-        fn update_history(&self, files: Vec<TorrentFile>) -> Result<(), anyhow::Error>;
+        fn update_history(&self, files: Vec<TorrentFile>) -> Result<()>;
     }
 }

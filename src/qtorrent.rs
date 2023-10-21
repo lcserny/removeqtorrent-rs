@@ -1,6 +1,6 @@
 use std::path::Path;
 
-use anyhow::{anyhow, Context};
+use eyre::{ContextCompat, Context, eyre, Result};
 use reqwest::{blocking::Client, header::{SET_COOKIE, COOKIE}};
 use tracing::info;
 
@@ -23,7 +23,7 @@ impl <'a> QTorrentHandler<'a> {
 }
 
 impl <'a> TorrentsHandler for QTorrentHandler<'a> {
-    fn generate_sid(&self) -> Result<String, anyhow::Error> {
+    fn generate_sid(&self) -> Result<String> {
         let url = format!("{}/api/v2/auth/login", &self.config.torrent_web_ui.base_url);
 
         let params = [
@@ -34,11 +34,11 @@ impl <'a> TorrentsHandler for QTorrentHandler<'a> {
         let resp = self.http_client.post(url).form(&params).send()?;
 
         let cookies = resp.headers().get(SET_COOKIE)
-            .with_context(|| "could not generate SID, no cookies found in response headers")?;
+            .wrap_err_with(|| "could not generate SID, no cookies found in response headers")?;
 
         let cookies_str = cookies.to_str()?;
         if !cookies_str.contains(SID_KEY) {
-            return Err(anyhow!("no SID cookie found in response while generating SID"));
+            return Err(eyre!("no SID cookie found in response while generating SID"));
         }
 
         let idx = match cookies_str.find(';') {
@@ -52,7 +52,7 @@ impl <'a> TorrentsHandler for QTorrentHandler<'a> {
         Ok(sid)
     }
 
-    fn list_files(&self, sid: &str, hash: &str) -> Result<Vec<TorrentFile>, anyhow::Error> {
+    fn list_files(&self, sid: &str, hash: &str) -> Result<Vec<TorrentFile>> {
         let url = format!("{}/api/v2/torrents/files", &self.config.torrent_web_ui.base_url);
 
         let params = [("hash", hash)];
@@ -60,7 +60,7 @@ impl <'a> TorrentsHandler for QTorrentHandler<'a> {
         let resp = self.http_client.post(url).header(COOKIE, format!("{}={}", SID_KEY, sid).as_str()).form(&params).send()?;
         let resp_body = resp.text()?;
         let mut torrent_files: Vec<TorrentFile> = serde_json::from_str(&resp_body)
-            .with_context(|| format!("could not deserialize json: {:?}", &resp_body))?;
+            .wrap_err_with(|| format!("could not deserialize json: {:?}", &resp_body))?;
 
         torrent_files.iter_mut()
             .for_each(|tf| {
@@ -74,7 +74,7 @@ impl <'a> TorrentsHandler for QTorrentHandler<'a> {
         Ok(torrent_files)
     }
 
-    fn delete(&self, sid: &str, hash: &str, delete_files: bool) -> Result<(), anyhow::Error> {
+    fn delete(&self, sid: &str, hash: &str, delete_files: bool) -> Result<()> {
         let url = format!("{}/api/v2/torrents/delete", &self.config.torrent_web_ui.base_url);
 
         let params = [
