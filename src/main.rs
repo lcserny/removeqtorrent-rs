@@ -14,14 +14,9 @@ fn main() {
     info!("executing command");
 
     let args = Args::parse();
+    let cfg = init_config("config/settings", "RQT")
+        .map_err(|e| log_and_fail(e, 1)).unwrap();
+    run(cfg, args.hash).map_err(|e| log_and_fail(e, 1)).unwrap();
 
-    match init_config("config/settings", "RQT") {
-        Ok(cfg) => match run(cfg, args.hash) {
-            Ok(_) => info!("command completed succesfully!"),
-            Err(e) => log_and_fail(e, 1),
-        },
-        Err(e) => log_and_fail(e, 1),
-    }
+    info!("command completed succesfully!");
 }
-
-
