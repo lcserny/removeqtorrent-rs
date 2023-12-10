@@ -1,6 +1,6 @@
 #[cfg(test)]
 mod tests {
-    use std::{sync::Arc, fs};
+    use std::{sync::Arc, fs, time::Duration, thread};
 
     use removeqtorrent::{init_config, qtorrent::{QTorrentHandler, SID_KEY}, torrents::TorrentsHandler};
     use reqwest::{{Client, multipart::{self}}, header::COOKIE};
@@ -46,7 +46,7 @@ mod tests {
         let config = Arc::new(config);
 
         let http_client = Client::new();
-        let handler = QTorrentHandler::new(config.clone(), Client::new());
+        let handler = QTorrentHandler::new(config.clone(), http_client.clone());
 
         let sid = handler.generate_sid().await.unwrap();
         let sid_cookie = format!("{}={}", SID_KEY, sid);
@@ -56,6 +56,9 @@ mod tests {
         let add_url = format!("{}/api/v2/torrents/add", config.torrent_web_ui.base_url);
         http_client.post(add_url).header(COOKIE, &sid_cookie)
             .multipart(form).send().await.unwrap();
+
+        // need a bit of time here between these two calls for QTorrent to process
+        thread::sleep(Duration::from_millis(100));
 
         let info_url = format!("{}/api/v2/torrents/info", config.torrent_web_ui.base_url);
         let resp = http_client.post(&info_url).header(COOKIE, &sid_cookie)
@@ -85,7 +88,7 @@ mod tests {
         let config = Arc::new(config);
 
         let http_client = Client::new();
-        let handler = QTorrentHandler::new(config.clone(), Client::new());
+        let handler = QTorrentHandler::new(config.clone(), http_client.clone());
 
         let sid = handler.generate_sid().await.unwrap();
         let sid_cookie = format!("{}={}", SID_KEY, sid);
@@ -95,6 +98,9 @@ mod tests {
         let add_url = format!("{}/api/v2/torrents/add", config.torrent_web_ui.base_url);
         http_client.post(add_url).header(COOKIE, &sid_cookie)
             .multipart(form).send().await.unwrap();
+
+        // need a bit of time here between these two calls for QTorrent to process
+        thread::sleep(Duration::from_millis(100));
 
         let info_url = format!("{}/api/v2/torrents/info", config.torrent_web_ui.base_url);
         let resp = http_client.post(&info_url).header(COOKIE, &sid_cookie)
