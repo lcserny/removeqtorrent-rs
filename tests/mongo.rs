@@ -1,7 +1,10 @@
 #[cfg(test)]
 mod tests {
-    use mongodb::{sync::Client, bson::{Document, doc}};
-    use removeqtorrent::{init_config, mongodb::MongoUpdater, downloads::HistoryUpdater, torrents::TorrentFile};
+    use std::sync::Arc;
+
+    use futures::TryStreamExt;
+    use mongodb::{Client, bson::{Document, doc}};
+    use removeqtorrent::{init_config, mongo::MongoUpdater, downloads::HistoryUpdater, torrents::TorrentFile};
     use testcontainers::{GenericImage, core::WaitFor, clients};
 
     const PORT: u16 = 27017;
@@ -16,32 +19,36 @@ mod tests {
                     .with_wait_for(WaitFor::message_on_stdout("Waiting for connections"))
     }
 
-    #[test]
-    fn can_update_history() {
+    #[tokio::test]
+    async fn can_update_history() {
         let docker = clients::Cli::default();
         let container = docker.run(create_image());
 
         let mut config = init_config("config/settings_test", "RQT_TEST").unwrap();
         config.mongodb.connection_url = format!("mongodb://{}:{}@localhost:{}/?retryWrites=true&w=majority", 
             USER, PASS, container.get_host_port_ipv4(PORT));
-        let updater = MongoUpdater::new(&config).unwrap();
+        let config = Arc::new(config);
+
+        let client = Client::with_uri_str(&config.mongodb.connection_url).await.unwrap();
+        let updater = MongoUpdater::new(config.clone(), client.clone());
 
         let name = "name1";
         let size = 1;
         let is_media = true;
 
-        updater.update_history(vec![TorrentFile {name: name.to_string(), size, is_media}]).unwrap();
+        updater.update_history(vec![TorrentFile {name: name.to_string(), size, is_media}]).await.unwrap();
 
-        let client = Client::with_uri_str(&config.mongodb.connection_url).unwrap();
+        let client = Client::with_uri_str(&config.mongodb.connection_url).await.unwrap();
         let database = client.database(&config.mongodb.database);
         let collection = database.collection::<Document>(&config.mongodb.download_collection);
 
-        assert_eq!(1, collection.count_documents(None, None).unwrap());
+        assert_eq!(1, collection.count_documents(None, None).await.unwrap());
         
-        let results: Vec<Document> = collection.find(doc!("file_name": name, "file_size": size as i64), None).unwrap()
-            .filter(|f| f.is_ok())
-            .map(|f| f.unwrap())
-            .collect();
+        let mut cursor = collection.find(doc!("file_name":name,"file_size":size as i64),None).await.unwrap();
+        let mut results = vec![];
+        while let Some(doc) = cursor.try_next().await.unwrap() {
+            results.push(doc);
+        }
         assert_eq!(1, results.len());
 
         let d = &results[0];

@@ -1,17 +1,18 @@
-use std::{env, thread::{self}};
+use std::{env, fs::OpenOptions, sync::Arc};
 
 use config::{Config, File, Environment};
-use eyre::{Context, Result, Report};
-use mongodb::MongoUpdater;
+use eyre::{Context, Result};
+use futures::try_join;
+use mongo::MongoUpdater;
 use qtorrent::QTorrentHandler;
-use reqwest::blocking::Client;
+use reqwest::Client;
 use serde::Deserialize;
-use tracing::{error, info};
+use tracing::info;
 
 use crate::{torrents::TorrentsHandler, downloads::HistoryUpdater};
 
 pub mod qtorrent;
-pub mod mongodb;
+pub mod mongo;
 
 #[derive(Debug, Deserialize)]
 pub struct MongoDb {
@@ -35,37 +36,28 @@ pub struct Settings {
     pub video_mime_types: Vec<String>,
 }
 
-pub fn run(cfg: Settings, hash: String) -> Result<()> {
+pub async fn run(cfg: Arc<Settings>, hash: String) -> Result<()> {
     info!("hash received: {}", &hash);
 
-    let http_client = Client::new();
-    let torrent_handler = QTorrentHandler::new(&cfg, &http_client);
-    let history_updater = MongoUpdater::new(&cfg)?;
+    let torrent_handler = QTorrentHandler::new(cfg.clone(), Client::new());
+    let mongo_client = mongodb::Client::with_uri_str(&cfg.mongodb.connection_url).await?;
+    let history_updater = MongoUpdater::new(cfg, mongo_client);
 
-    let sid = torrent_handler.generate_sid()?;
-    let torrents = torrent_handler.list_files(&sid, &hash)?;
+    let sid = torrent_handler.generate_sid().await?;
+    let torrents = torrent_handler.list_files(&sid, &hash).await?;
 
-    let (update_result, delete_result) = thread::scope(|scp| {
-        let update_handle = scp.spawn(|| {
-            history_updater.update_history(torrents)
-        });
-        let delete_handle = scp.spawn(|| {
-            torrent_handler.delete(&sid, &hash, false)
-        });
-        return (update_handle.join().unwrap(), delete_handle.join().unwrap());
-    });
-
-    update_result?;
-    delete_result?;
+    try_join!(
+        history_updater.update_history(torrents), 
+        torrent_handler.delete(&sid, &hash, false)
+    )?;
 
     Ok(())
 }
 
-pub fn init_logging(dir: &str, prefix: &str) {
-    let file_appender = tracing_appender::rolling::daily(dir, prefix);
-    // let (non_blocking, _guard) = tracing_appender::non_blocking(file_appender);
-    // tracing_subscriber::fmt().with_writer(non_blocking).init();
-    tracing_subscriber::fmt().with_writer(file_appender).init();
+pub fn init_logging(log_file_path: &str) -> eyre::Result<()> {
+    let file_appender = OpenOptions::new().create(true).write(true).append(true).open(log_file_path)?;
+    tracing_subscriber::fmt().with_writer(file_appender).init(); 
+    Ok(())
 }
 
 pub fn init_config(filename: &str, env_prefix: &str) -> Result<Settings> {
@@ -79,12 +71,8 @@ pub fn init_config(filename: &str, env_prefix: &str) -> Result<Settings> {
                 .try_deserialize().wrap_err_with(|| format!("failed to create Settings from config proovided: {}", &filename));
 }
 
-pub fn log_and_fail(e: Report, error_code: i32) {
-    error!("{:?}", e);
-    std::process::exit(error_code);
-}
-
 pub mod torrents {
+    use async_trait::async_trait;
     use eyre::Result;
     use serde::Deserialize;
 
@@ -96,19 +84,22 @@ pub mod torrents {
         pub is_media: bool,
     }
 
+    #[async_trait]
     pub trait TorrentsHandler {
-        fn generate_sid(&self) -> Result<String>;
-        fn list_files(&self, sid: &str, hash: &str) -> Result<Vec<TorrentFile>>;
-        fn delete(&self, sid: &str, hash: &str, delete_files: bool) -> Result<()>;
+        async fn generate_sid(&self) -> Result<String>;
+        async fn list_files(&self, sid: &str, hash: &str) -> Result<Vec<TorrentFile>>;
+        async fn delete(&self, sid: &str, hash: &str, delete_files: bool) -> Result<()>;
     }
 }
 
 pub mod downloads {
+    use async_trait::async_trait;
     use eyre::Result;
 
     use crate::torrents::TorrentFile;
 
+    #[async_trait]
     pub trait HistoryUpdater {
-        fn update_history(&self, files: Vec<TorrentFile>) -> Result<()>;
+        async fn update_history(&self, files: Vec<TorrentFile>) -> Result<()>;
     }
 }
