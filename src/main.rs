@@ -1,7 +1,7 @@
 use std::sync::Arc;
 
 use clap::Parser;
-use removeqtorrent::{run, init_logging, init_config};
+use removeqtorrent::{execute, init_logging, init_config};
 use tracing::info;
 
 #[derive(Parser, Debug)]
@@ -18,7 +18,7 @@ async fn main() -> eyre::Result<()> {
 
     let args = Args::parse();
     let cfg = init_config("config/settings", "RQT")?;
-    run(Arc::new(cfg), args.hash).await?;
+    execute(Arc::new(cfg), args.hash).await?;
 
     info!("command completed succesfully!");
     Ok(())

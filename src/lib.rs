@@ -36,7 +36,7 @@ pub struct Settings {
     pub video_mime_types: Vec<String>,
 }
 
-pub async fn run(cfg: Arc<Settings>, hash: String) -> Result<()> {
+pub async fn execute(cfg: Arc<Settings>, hash: String) -> Result<()> {
     info!("hash received: {}", &hash);
 
     let torrent_handler = QTorrentHandler::new(cfg.clone(), Client::new());
