@@ -4,7 +4,7 @@ mod tests {
 
     use futures::TryStreamExt;
     use mongodb::{Client, bson::{Document, doc}};
-    use removeqtorrent::{init_config, mongo::MongoUpdater, downloads::HistoryUpdater, torrents::TorrentFile};
+    use removeqtorrent::{mongo::MongoUpdater, downloads::HistoryUpdater, torrents::TorrentFile, config::init_config};
     use testcontainers::{GenericImage, core::WaitFor, clients};
 
     const PORT: u16 = 27017;

@@ -2,7 +2,7 @@
 mod tests {
     use std::{sync::Arc, fs, time::Duration, thread};
 
-    use removeqtorrent::{init_config, qtorrent::{QTorrentHandler, SID_KEY}, torrents::TorrentsHandler};
+    use removeqtorrent::{qtorrent::{QTorrentHandler, SID_KEY}, torrents::TorrentsHandler, config::init_config};
     use reqwest::{{Client, multipart::{self}}, header::COOKIE};
     use serde::Deserialize;
     use testcontainers::{core::WaitFor, clients, GenericImage};
