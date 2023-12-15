@@ -4,8 +4,9 @@ mod tests {
 
     use futures::TryStreamExt;
     use mongodb::{Client, bson::{Document, doc}};
-    use removeqtorrent::{mongo::MongoUpdater, downloads::HistoryUpdater, torrents::TorrentFile, config::init_config};
+    use removeqtorrent::{mongo::MongoUpdater, downloads::HistoryUpdater, torrents::TorrentFile, config::Settings};
     use testcontainers::{GenericImage, core::WaitFor, clients};
+    use utils::config::init_config;
 
     const PORT: u16 = 27017;
     const USER: &str = "root";
@@ -24,7 +25,7 @@ mod tests {
         let docker = clients::Cli::default();
         let container = docker.run(create_image());
 
-        let mut config = init_config("config/settings_test", "RQT_TEST").unwrap();
+        let mut config = init_config::<Settings>("config/settings_test", "RQT_TEST").unwrap();
         config.mongodb.connection_url = format!("mongodb://{}:{}@localhost:{}/?retryWrites=true&w=majority", 
             USER, PASS, container.get_host_port_ipv4(PORT));
         let config = Arc::new(config);

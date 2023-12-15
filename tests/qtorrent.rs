@@ -2,10 +2,11 @@
 mod tests {
     use std::{sync::Arc, fs, time::Duration, thread};
 
-    use removeqtorrent::{qtorrent::{QTorrentHandler, SID_KEY}, torrents::TorrentsHandler, config::init_config};
+    use removeqtorrent::{qtorrent::{QTorrentHandler, SID_KEY}, torrents::TorrentsHandler, config::Settings};
     use reqwest::{{Client, multipart::{self}}, header::COOKIE};
     use serde::Deserialize;
     use testcontainers::{core::WaitFor, clients, GenericImage};
+    use utils::config::init_config;
 
     const PORT: u16 = 8080;
 
@@ -26,7 +27,7 @@ mod tests {
         let docker = clients::Cli::default();
         let container = docker.run(create_image());
 
-        let mut config = init_config("config/settings_test", "RQT_TEST").unwrap();
+        let mut config = init_config::<Settings>("config/settings_test", "RQT_TEST").unwrap();
         config.torrent_web_ui.base_url = format!("http://localhost:{}", container.get_host_port_ipv4(PORT));
 
         let handler = QTorrentHandler::new(Arc::new(config), Client::new());
@@ -41,7 +42,7 @@ mod tests {
         let docker = clients::Cli::default();
         let container = docker.run(create_image());
 
-        let mut config = init_config("config/settings_test", "RQT_TEST").unwrap();
+        let mut config = init_config::<Settings>("config/settings_test", "RQT_TEST").unwrap();
         config.torrent_web_ui.base_url = format!("http://localhost:{}", container.get_host_port_ipv4(PORT));
         let config = Arc::new(config);
 
@@ -83,7 +84,7 @@ mod tests {
         let docker = clients::Cli::default();
         let container = docker.run(create_image());
 
-        let mut config = init_config("config/settings_test", "RQT_TEST").unwrap();
+        let mut config = init_config::<Settings>("config/settings_test", "RQT_TEST").unwrap();
         config.torrent_web_ui.base_url = format!("http://localhost:{}", container.get_host_port_ipv4(PORT));
         let config = Arc::new(config);
 

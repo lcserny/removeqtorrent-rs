@@ -1,8 +1,9 @@
 use std::sync::Arc;
 
 use clap::Parser;
-use removeqtorrent::{execute, config::{init_logging, init_config}};
+use removeqtorrent::execute;
 use tracing::info;
+use utils::config::{init_logging, init_config};
 
 #[derive(Parser, Debug)]
 #[command(author, version, about, long_about = None)]
